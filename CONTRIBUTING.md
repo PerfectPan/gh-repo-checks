@@ -44,11 +44,13 @@ Use a conventional English title, `type(scope): summary`, and fill every section
 
 Downstream repositories reference the moving major tag `@v1`. A change that can fail a repository that passed before, such as a new default required file, a new scanned pattern, or a changed review section, needs a new major version; state the release impact in the pull request.
 
-After the change lands on `main` and CI passes, release with:
+After the change lands on `main` and CI passes on both Ubuntu and macOS (bash 5 and `/bin/bash` 3.2), release with:
 
 ```bash
 scripts/release.sh vX.Y.Z
 ```
+
+The release is done when `git rev-parse vX` and `git rev-parse vX.Y.Z` name the same commit and `gh extension upgrade repo-checks` moves a local install to it. A new major version also needs its consumers moved: the `@vN` references in PerfectPan/project-template and PerfectPan/project-template-rush `review.yml`, each downstream repository's workflows, and rivus-agent's `gh extension install ... --pin vN`.
 
 ## Security Reports
 
