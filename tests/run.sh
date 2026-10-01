@@ -8,8 +8,6 @@ work="$(mktemp -d "${TMPDIR:-/tmp}/gh-repo-checks-test.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 # Fixture repositories must not resolve to a repository that encloses $work.
 export GIT_CEILING_DIRECTORIES="$work"
-# shellcheck source=checks/review-sections.sh
-source "$root/checks/review-sections.sh"
 
 # Built from pieces so this file does not trip the repository check itself.
 fake_aws_key="AKIA""ABCDEFGHIJKLMNOP"
@@ -87,24 +85,39 @@ stdin_from() {
   "$@" <"$file"
 }
 
+# The recommended template: Summary and Validation are required, Risks is not.
 write_pr_template() {
-  local section
-  {
-    printf '%s\n' "Title format: type(scope): summary, in English."
-    for section in "${required_review_sections[@]}"; do
-      printf '\n## %s\n\n-\n' "$section"
-      if [[ "$section" == "Validation" ]]; then
-        printf '%s\n' "- [ ] Repository checks: gh repo-checks repository"
-      fi
-    done
-  } >"$1"
+  cat >"$1" <<'TEMPLATE'
+Title format: type(scope): summary, in English.
+
+## Summary
+
+<!-- What changed and why. -->
+
+-
+
+## Validation
+
+- [ ] Repository checks: gh repo-checks repository
+
+## Risks
+
+<!-- Optional; delete this section when there are none. -->
+
+-
+TEMPLATE
 }
 
 write_filled_body() {
-  local section
-  for section in "${required_review_sections[@]}"; do
-    printf '## %s\n\n- Filled %s for this change.\n\n' "$section" "$section"
-  done >"$1"
+  cat >"$1" <<'BODY'
+## Summary
+
+- Filled Summary for this change.
+
+## Validation
+
+- Filled Validation for this change.
+BODY
 }
 
 default_files=(
@@ -197,13 +210,18 @@ template="$body_repo/.github/pull_request_template.md"
 filled="$work/filled.md"
 write_filled_body "$filled"
 
-expect_ok "pr-body accepts a filled body from a file" in_repo "$body_repo" cli pr-body "$filled"
+expect_ok "pr-body accepts a body with only Summary and Validation" in_repo "$body_repo" cli pr-body "$filled"
 expect_ok "pr-body accepts a filled body from stdin" stdin_from "$filled" in_repo "$body_repo" cli pr-body
 expect_ok "pr-body accepts a filled body from -" stdin_from "$filled" in_repo "$body_repo" cli pr-body -
 
 expect_error "no content beyond template placeholders: ## Summary" \
   "pr-body rejects the unchanged template" in_repo "$body_repo" cli pr-body "$template"
 expect_output "no content beyond template placeholders: ## Validation"
+
+template_summary="$work/template-summary.md"
+printf '## Summary\n\n<!-- What changed and why. -->\n\n-\n\n## Validation\n\n- Ran the self-test.\n' >"$template_summary"
+expect_error "no content beyond template placeholders: ## Summary" \
+  "pr-body rejects a Summary with only template placeholders" in_repo "$body_repo" cli pr-body "$template_summary"
 
 template_validation="$work/template-validation.md"
 awk '/^## Validation$/ { print; print ""; print "- [ ] Repository checks: gh repo-checks repository"; skip = 1; next }
@@ -222,23 +240,30 @@ printf '  \n\t\n   \n' >"$whitespace"
 expect_error "missing PR body" "pr-body rejects a whitespace-only body" in_repo "$body_repo" cli pr-body "$whitespace"
 
 missing_section="$work/missing-section.md"
-grep -v '^## Evidence$' "$filled" >"$missing_section"
-expect_error "missing required section: ## Evidence" "pr-body rejects a missing section" \
+printf '## Summary\n\n- Filled Summary for this change.\n' >"$missing_section"
+expect_error "missing required section: ## Validation" "pr-body rejects a missing Validation section" \
   in_repo "$body_repo" cli pr-body "$missing_section"
+
+extra_sections="$work/extra-sections.md"
+{
+  cat "$filled"
+  printf '\n## Risks\n\n-\n\n## Motivation\n\n## Rollout Notes\n\nEnabled for one tenant first.\n'
+} >"$extra_sections"
+expect_ok "pr-body accepts extra, empty, and unknown sections" in_repo "$body_repo" cli pr-body "$extra_sections"
+
+seven_sections="$work/seven-sections.md"
+printf '## Summary\n\n- Filled.\n\n## Motivation\n\n-\n\n## Implementation Notes\n\n-\n\n## Validation\n\n- Ran it.\n\n## Evidence\n\n-\n\n## Safety Checklist\n\n- [ ] Clean.\n\n## Follow-up Risks\n\n-\n' >"$seven_sections"
+expect_ok "pr-body accepts a body from the earlier seven-section template" in_repo "$body_repo" cli pr-body "$seven_sections"
 
 expect_error "file not found" "pr-body rejects a missing file" in_repo "$body_repo" cli pr-body "$work/absent.md"
 expect_error "Usage:" "pr-body rejects two arguments" in_repo "$body_repo" cli pr-body a b
 
 large="$work/large.md"
 {
-  for section in "${required_review_sections[@]}"; do
-    printf '## %s\n\n- Filled %s for this change.\n' "$section" "$section"
-    if [[ "$section" == "Implementation Notes" ]]; then
-      for i in $(seq 1 250); do
-        printf -- '- Note %d: a long implementation detail line for timing.\n' "$i"
-      done
-    fi
-    printf '\n'
+  cat "$filled"
+  printf '\n## Implementation Notes\n\n'
+  for i in $(seq 1 250); do
+    printf -- '- Note %d: a long implementation detail line for timing purposes.\n' "$i"
   done
 } | perl -pe 's/\n/\r\n/' >"$large"
 large_bytes="$(wc -c <"$large" | tr -d ' ')"
@@ -294,10 +319,12 @@ put "$repo" AGENTS.md "Scan for $fake_placeholder before publishing."
 expect_ok "repository skips AGENTS.md in the scan" in_repo "$repo" cli repository
 
 repo="$(new_repo template-section)"
-grep -v '^## Evidence$' "$repo/.github/pull_request_template.md" >"$work/pr-template.md"
+grep -v '^## Validation$' "$repo/.github/pull_request_template.md" >"$work/pr-template.md"
 put "$repo" .github/pull_request_template.md "$(cat "$work/pr-template.md")"
-expect_error ".github/pull_request_template.md is missing required section: Evidence" \
-  "repository rejects a PR template without a section" in_repo "$repo" cli repository
+expect_error ".github/pull_request_template.md is missing required section: Validation" \
+  "repository rejects a PR template without Validation" in_repo "$repo" cli repository
+put "$repo" .github/pull_request_template.md "$(printf '## Summary\n\n-\n\n## Validation\n\n-')"
+expect_ok "repository accepts a PR template with only Summary and Validation" in_repo "$repo" cli repository
 
 repo="$(new_repo arguments)"
 mkdir -p "$work/plain"
@@ -314,7 +341,7 @@ put "$repo" .gitlab/merge_request_templates/default.md "$(cat "$repo/.github/pul
 expect_ok "repository accepts matching PR and MR templates" in_repo "$repo" cli repository
 expect_ok "repository --staged accepts matching PR and MR templates" in_repo "$repo" cli repository --staged
 put "$repo" .gitlab/merge_request_templates/default.md "$(cat "$work/pr-template.md")"
-expect_error ".gitlab/merge_request_templates/default.md is missing required section: Evidence" \
+expect_error ".gitlab/merge_request_templates/default.md is missing required section: Validation" \
   "repository checks the MR template sections" in_repo "$repo" cli repository
 
 # --- repository: .github/repo-checks.conf -----------------------------------

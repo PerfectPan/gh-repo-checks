@@ -5,8 +5,8 @@ Review checks for PerfectPan repositories, shipped from one versioned source as 
 | Command | Checks |
 | --- | --- |
 | `pr-title` | The PR/MR title is an English Conventional Commit: `type(scope): summary`. |
-| `pr-body` | The PR/MR description keeps every review section, fills Summary and Validation beyond template placeholders, and has no agent attribution lines. |
-| `repository` | Required files exist, no local or generated artifacts are tracked, no obvious secrets, personal paths, or forbidden patterns are tracked, and the PR/MR templates keep every review section. |
+| `pr-body` | The PR/MR description has Summary and Validation sections with more than template placeholders, and no agent attribution lines. Other sections are optional. |
+| `repository` | Required files exist, no local or generated artifacts are tracked, no obvious secrets, personal paths, or forbidden patterns are tracked, and the PR/MR templates contain the required review sections. |
 | `protect` | Previews or applies GitHub branch protection that requires these checks. |
 
 The commands need bash (macOS `/bin/bash` 3.2 or newer), Git, and Perl. Installing the extension and `protect` need the [GitHub CLI](https://cli.github.com/).
@@ -42,7 +42,7 @@ Accepts the types `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `b
 
 Reads FILE, or stdin when FILE is omitted or `-`, and fails when:
 
-- a [review section](#review-sections) heading is missing;
+- a [required review section](#review-sections), Summary or Validation, is missing;
 - Summary or Validation contains only blank lines, empty bullets or checkboxes, HTML comments, or lines copied unchanged from `.github/pull_request_template.md` or `.gitlab/merge_request_templates/default.md`;
 - a line attributes the text to a tool, such as "Generated with <tool>".
 
@@ -55,7 +55,7 @@ Runs from the root of the current Git repository and stops at the first failing 
 1. Required files exist: the defaults below, adjusted by [configuration](#configuration).
 2. No local or generated artifacts are tracked: `node_modules`, `dist`, `build`, `coverage`, `tmp`, `temp`, tool caches, `.DS_Store`, `.env` files, `*.log`, `.omx`, `.codex`, or `.claude/settings.local.json`.
 3. Tracked text files contain no obvious secrets (AWS access keys, GitHub and Slack tokens, private keys), personal home directory paths, the private placeholders used by the project template, or `forbid` patterns.
-4. `.github/pull_request_template.md` and, when present, `.gitlab/merge_request_templates/default.md` contain every review section as a `## ` heading.
+4. `.github/pull_request_template.md` and, when present, `.gitlab/merge_request_templates/default.md` contain the required review sections, Summary and Validation, as `## ` headings.
 
 `--staged` checks the Git index instead of the working tree, including the configuration file, so a pre-commit hook judges exactly what is about to be committed.
 
@@ -195,19 +195,42 @@ Append repository-specific commands after the repository check.
 
 ## Review sections
 
-Every PR/MR template and description must contain these `## ` headings, defined once in [`checks/review-sections.sh`](checks/review-sections.sh):
+Two `## ` headings are required, defined once in [`checks/review-sections.sh`](checks/review-sections.sh):
 
-- Summary
-- Motivation
-- Implementation Notes
-- Validation
-- Evidence
-- Safety Checklist
-- Follow-up Risks
+- `Summary`: what changed and why.
+- `Validation`: how the change was tested.
+
+Every PR/MR template must contain both headings, and every description must fill both with more than template placeholders. Any other section is optional: a description may keep, delete, or add sections without failing the check.
+
+Recommended `.github/pull_request_template.md` (keep `.gitlab/merge_request_templates/default.md` identical when the repository uses GitLab):
+
+```markdown
+Title format: `type(scope): summary`, in English.
+
+## Summary
+
+<!-- What changed and why. Link the issue, Spec, or Plan when there is one. -->
+
+-
+
+## Validation
+
+<!-- Commands you ran and their results. Name skipped checks and why. -->
+
+-
+
+## Risks
+
+<!-- Optional: compatibility, rollout, or follow-up risks. Delete this section when there are none. -->
+
+-
+```
+
+Lines copied unchanged from the template, empty bullets and checkboxes, and single-line HTML comments count as placeholders, so a template's own checklist items count only after they are edited or checked.
 
 ## Versioning
 
-Releases are tagged `vX.Y.Z`, and the major tag `vX` moves to the newest `vX.Y.Z`. Workflows reference the major tag, `PerfectPan/gh-repo-checks@v1`, not a commit SHA, so they receive fixes and compatible additions without edits. A change that can fail a repository that passed before, such as a new default required file, a new scanned pattern, or a changed review section, ships under a new major tag.
+Releases are tagged `vX.Y.Z`, and the major tag `vX` moves to the newest `vX.Y.Z`. Workflows reference the major tag, `PerfectPan/gh-repo-checks@v1`, not a commit SHA, so they receive fixes and compatible additions without edits. A change that can fail a repository that passed before, such as a new default required file, a new scanned pattern, or a new required review section, ships under a new major tag.
 
 To cut a release after CI passes on `main`:
 

@@ -4,41 +4,20 @@ Allowed types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `buil
 
 ## Summary
 
--
-
-## Motivation
-
--
-
-## Implementation Notes
+<!-- What changed and why. -->
 
 -
 
 ## Validation
 
+<!-- Commands you ran and their results. Name skipped checks and why. -->
+
 - [ ] Self-test under bash 3.2: `/bin/bash tests/run.sh`
 - [ ] Shellcheck: `shellcheck -x gh-repo-checks checks/*.sh scripts/*.sh tests/*.sh`
 - [ ] Repository checks: `./gh-repo-checks repository`
-- [ ] PR title: `./gh-repo-checks pr-title "<title>"`
-- [ ] PR description: `./gh-repo-checks pr-body <body-file>`
 
-Skipped gates and reasons:
+## Risks
 
--
-
-## Evidence
-
-- Linked issue or requirement:
-- Test output or workflow run:
-- Release impact (patch, minor, or major for downstream repositories):
-
-## Safety Checklist
-
-- [ ] No credentials, tokens, private hostnames, personal filesystem paths, or generated logs are included.
-- [ ] Scripts still run under macOS `/bin/bash` 3.2 and Linux bash 5.
-- [ ] README documents changed commands, defaults, or configuration.
-- [ ] A change that can fail a previously passing repository is released as a new major version.
-
-## Follow-up Risks
+<!-- Optional; delete this section when there are none. A change that can fail a repository that passed before needs a new major version. -->
 
 -

@@ -21,7 +21,7 @@ Run `./gh-repo-checks` from the checkout to try a change; an installed extension
 
 - `gh-repo-checks`: the extension entry point. It dispatches to `checks/<command>.sh` under the same bash.
 - `action.yml`: the composite action. It runs the same entry point and passes event fields through environment variables.
-- `checks/`: one script per command, plus `review-sections.sh`, the single list of review sections.
+- `checks/`: one script per command, plus `review-sections.sh`, the single list of required review sections.
 - `tests/run.sh`: the self-test. It builds fixture repositories in a temporary directory.
 - `scripts/release.sh`: tags and publishes a release.
 - `.github/repo-checks.conf`: this repository's own configuration for the repository check.
@@ -38,11 +38,11 @@ The scripts run under macOS `/bin/bash` 3.2 and Linux bash 5, and CI runs the se
 
 ## Pull Requests
 
-Use a conventional English title, `type(scope): summary`, and fill every section of the pull request template. The `Review` workflow runs this repository's action from the pull request's own commit, and the `CI` workflow runs the self-test on Ubuntu and macOS.
+Use a conventional English title, `type(scope): summary`, and fill the Summary and Validation sections of the pull request template. The `Review` workflow runs this repository's action from the pull request's own commit, and the `CI` workflow runs the self-test on Ubuntu and macOS.
 
 ## Compatibility And Releases
 
-Downstream repositories reference the moving major tag `@v1`. A change that can fail a repository that passed before, such as a new default required file, a new scanned pattern, or a changed review section, needs a new major version; state the release impact in the pull request.
+Downstream repositories reference the moving major tag `@v1`. A change that can fail a repository that passed before, such as a new default required file, a new scanned pattern, or a new required review section, needs a new major version; state the release impact in the pull request.
 
 After the change lands on `main` and CI passes on both Ubuntu and macOS (bash 5 and `/bin/bash` 3.2), release with:
 

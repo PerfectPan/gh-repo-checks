@@ -10,7 +10,7 @@ Usage:
   gh repo-checks repository [--staged]
 
 Checks required repository files, tracked local artifacts, obvious secrets,
-private paths, forbidden patterns, and review template sections. Settings for
+private paths, forbidden patterns, and required review sections. Settings for
 the repository are read from .github/repo-checks.conf when it exists.
 
 Options:

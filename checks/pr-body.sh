@@ -8,9 +8,9 @@ Usage:
   printf '%s\n' "$PR_BODY" | gh repo-checks pr-body
 
 Checks a PR or MR description read from FILE, or from stdin when FILE is
-omitted or "-". The description must contain every review template section,
-Summary and Validation must contain more than template placeholders, and
-agent attribution lines are rejected.
+omitted or "-". The Summary and Validation sections must be present and
+contain more than template placeholders; other sections are optional. Agent
+attribution lines are rejected.
 
 Run it inside the repository: lines copied unchanged from its
 .github/pull_request_template.md or .gitlab/merge_request_templates/default.md
@@ -99,11 +99,7 @@ errors=()
 for section in "${required_review_sections[@]}"; do
   if ! grep -E "^## ${section}[[:space:]]*$" <<<"$body" >/dev/null; then
     errors+=("missing required section: ## $section")
-  fi
-done
-
-for section in "Summary" "Validation"; do
-  if ! has_content "$section"; then
+  elif ! has_content "$section"; then
     errors+=("section has no content beyond template placeholders: ## $section")
   fi
 done

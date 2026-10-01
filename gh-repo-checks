@@ -12,7 +12,7 @@ Commands:
   pr-title TITLE          Check that a PR/MR title is an English Conventional Commit.
   pr-body [FILE|-]        Check a PR/MR description against the review template.
   repository [--staged]   Check required files, tracked artifacts, secrets,
-                          private paths, and review template sections.
+                          private paths, and required review sections.
   protect [options]       Preview or apply GitHub branch protection.
 
 Run "gh repo-checks <command> --help" for command options.
