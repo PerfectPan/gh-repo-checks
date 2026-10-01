@@ -5,13 +5,14 @@ apply=false
 repo=""
 branch=""
 approvals=1
+review_checks=true
 extra_checks=()
 
 usage() {
   cat <<'USAGE'
 Usage:
   gh repo-checks protect [--repo OWNER/REPO] [--branch BRANCH]
-    [--approvals N] [--check NAME]... [--apply]
+    [--approvals N] [--check NAME]... [--no-review-checks] [--apply]
 
 Configures GitHub branch protection that requires the review checks.
 
@@ -22,6 +23,10 @@ Defaults:
                approve their own pull requests
   --check      additional required status check (repeatable), such as the
                project's CI job names
+  --no-review-checks
+               drop the built-in "repository checks", "conventional PR title",
+               and "PR description" contexts, for a repository whose Review
+               workflow does not run on every pull request; requires --check
 
 Without --apply, prints the branch protection payload and does not call GitHub.
 USAGE
@@ -49,6 +54,10 @@ while [[ $# -gt 0 ]]; do
       extra_checks+=("${2:-}")
       shift 2
       ;;
+    --no-review-checks)
+      review_checks=false
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -60,6 +69,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$review_checks" == false ]] && (( ${#extra_checks[@]} == 0 )); then
+  printf 'repo-checks protect: --no-review-checks requires at least one --check\n' >&2
+  exit 1
+fi
 
 if [[ -z "$repo" ]]; then
   if ! command -v gh >/dev/null 2>&1; then
@@ -93,7 +107,10 @@ else
   last_push_approval=false
 fi
 
-contexts=("repository checks" "conventional PR title" "PR description")
+contexts=()
+if [[ "$review_checks" == true ]]; then
+  contexts=("repository checks" "conventional PR title" "PR description")
+fi
 if (( ${#extra_checks[@]} > 0 )); then
   contexts+=("${extra_checks[@]}")
 fi

@@ -71,10 +71,12 @@ Default required files:
 ### `gh repo-checks protect`
 
 ```bash
-gh repo-checks protect [--repo OWNER/REPO] [--branch BRANCH] [--approvals N] [--check NAME]... [--apply]
+gh repo-checks protect [--repo OWNER/REPO] [--branch BRANCH] [--approvals N] [--check NAME]... [--no-review-checks] [--apply]
 ```
 
 Prints the branch protection payload; `--apply` sends it with `gh api` and needs an account that can edit repository settings. The payload requires pull requests with N approving reviews (default 1, dismissed by new pushes), linear history, resolved conversations, enforcement for admins, and the status checks `repository checks`, `conventional PR title`, and `PR description`, plus each `--check`, such as the CI job names.
+
+`--no-review-checks` drops the three built-in status checks, so only the `--check` names are required; it fails without at least one `--check`. Use it when the repository's Review workflow does not run on every pull request, for example when it runs only on `workflow_dispatch` and reports through another status check.
 
 `--repo` defaults to the current repository and `--branch` to its default branch. A repository with a single maintainer cannot approve its own pull requests; pass `--approvals 0` to keep the other protections. If the repository uses rulesets, add the checks to the ruleset instead of layering classic branch protection on top.
 

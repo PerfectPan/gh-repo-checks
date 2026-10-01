@@ -406,6 +406,14 @@ expect_output '"required_approving_review_count": 1'
 expect_output '"require_last_push_approval": true'
 expect_output '"contexts": ["repository checks", "conventional PR title", "PR description"]'
 
+expect_ok "protect dry run with --no-review-checks" \
+  cli protect --repo owner/repo --branch main --no-review-checks --check "node checks"
+expect_output '"contexts": ["node checks"]'
+expect_output '"required_approving_review_count": 1'
+
+expect_error "--no-review-checks requires at least one --check" "protect rejects --no-review-checks alone" \
+  cli protect --repo owner/repo --branch main --no-review-checks
+
 expect_error "--approvals must be a non-negative integer" "protect rejects bad approvals" \
   cli protect --repo owner/repo --branch main --approvals many
 expect_error "invalid check name" "protect rejects a quoted check name" \
