@@ -1,0 +1,39 @@
+name: Repository review checks
+description: Check required repository files, the PR title, or the PR description.
+author: PerfectPan
+branding:
+  icon: check-square
+  color: green
+
+inputs:
+  check:
+    description: "Check to run: repository, pr-title, or pr-body. pr-title and pr-body read the pull_request event payload."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Run ${{ inputs.check }} check
+      shell: bash
+      # Event fields reach the shell only through env, never through ${{ }} in
+      # the script, so a crafted title or body cannot inject commands.
+      env:
+        CHECK: ${{ inputs.check }}
+        PR_TITLE: ${{ github.event.pull_request.title }}
+        PR_BODY: ${{ github.event.pull_request.body }}
+      run: |
+        case "$CHECK" in
+          repository)
+            "$GITHUB_ACTION_PATH/gh-repo-checks" repository
+            ;;
+          pr-title)
+            "$GITHUB_ACTION_PATH/gh-repo-checks" pr-title "$PR_TITLE"
+            ;;
+          pr-body)
+            printf '%s\n' "$PR_BODY" | "$GITHUB_ACTION_PATH/gh-repo-checks" pr-body
+            ;;
+          *)
+            printf 'repo-checks: unknown check: %s (expected repository, pr-title, or pr-body)\n' "$CHECK" >&2
+            exit 1
+            ;;
+        esac

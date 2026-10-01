@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  gh repo-checks <command> [options]
+
+Commands:
+  pr-title TITLE          Check that a PR/MR title is an English Conventional Commit.
+  pr-body [FILE|-]        Check a PR/MR description against the review template.
+  repository [--staged]   Check required files, tracked artifacts, secrets,
+                          private paths, and review template sections.
+  protect [options]       Preview or apply GitHub branch protection.
+
+Run "gh repo-checks <command> --help" for command options.
+USAGE
+}
+
+command="${1:-}"
+case "$command" in
+  pr-title|pr-body|repository|protect)
+    shift
+    # Run the command under the interpreter that runs this dispatcher, so
+    # "/bin/bash gh-repo-checks" exercises macOS bash 3.2 end to end.
+    exec "$BASH" "$root/checks/$command.sh" "$@"
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  "")
+    usage >&2
+    exit 1
+    ;;
+  *)
+    printf 'repo-checks: unknown command: %s\n' "$command" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
