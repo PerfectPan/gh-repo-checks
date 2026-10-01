@@ -50,7 +50,7 @@ After the change lands on `main` and CI passes on both Ubuntu and macOS (bash 5 
 scripts/release.sh vX.Y.Z
 ```
 
-The release is done when `git rev-parse vX` and `git rev-parse vX.Y.Z` name the same commit and `gh extension upgrade repo-checks` moves a local install to it. A new major version also needs its consumers moved: the `@vN` references in PerfectPan/project-template and PerfectPan/project-template-rush `review.yml`, each downstream repository's workflows, and rivus-agent's `gh extension install ... --pin vN`.
+The release is done when `git rev-parse "vX^{commit}" "vX.Y.Z^{commit}"` prints the same commit twice (plain `git rev-parse vX.Y.Z` prints the annotated tag object, not the commit) and `gh extension upgrade repo-checks` moves a local install to it. A new major version also needs its consumers moved: the `@vN` references in PerfectPan/project-template and PerfectPan/project-template-rush `review.yml`, each downstream repository's workflows, and rivus-agent's `gh extension install ... --pin vN`.
 
 ## Security Reports
 
