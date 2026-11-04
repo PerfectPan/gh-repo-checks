@@ -8,6 +8,7 @@ Review checks for PerfectPan repositories, shipped from one versioned source as 
 | `pr-body` | The PR/MR description has Summary and Validation sections with more than template placeholders, and no agent attribution lines. Other sections are optional. |
 | `repository` | Required files exist, no local or generated artifacts are tracked, no obvious secrets, personal paths, or forbidden patterns are tracked, and the PR/MR templates contain the required review sections. |
 | `protect` | Previews or applies GitHub branch protection that requires these checks. |
+| `settings` | Audits GitHub settings and selected CI workflows against an explicit policy, without writing settings. |
 
 The commands need bash (macOS `/bin/bash` 3.2 or newer), Git, and Perl. Installing the extension and `protect` need the [GitHub CLI](https://cli.github.com/).
 
@@ -79,6 +80,106 @@ Prints the branch protection payload; `--apply` sends it with `gh api` and needs
 `--no-review-checks` drops the three built-in status checks, so only the `--check` names are required; it fails without at least one `--check`. Use it when the repository's Review workflow does not run on every pull request, for example when it runs only on `workflow_dispatch` and reports through another status check.
 
 `--repo` defaults to the current repository and `--branch` to its default branch. A repository with a single maintainer cannot approve its own pull requests; pass `--approvals 0` to keep the other protections. If the repository uses rulesets, add the checks to the ruleset instead of layering classic branch protection on top.
+
+### `gh repo-checks settings`
+
+```bash
+gh repo-checks settings --repo OWNER/REPO --policy policy.json --json
+# Saved connector evidence can be audited without making API requests:
+gh repo-checks settings --snapshot snapshot.json --policy policy.json --json
+```
+
+This additive command is read-only and separate from `protect`. It only calls
+`gh api --hostname github.com --method GET`, does not install tools or create
+credentials, and never changes GitHub configuration. It requires Python 3;
+PyYAML is optional for workflow parsing. Missing tools or unreadable endpoints
+produce `unknown` findings rather than silently succeeding.
+
+The required JSON policy contains `version: 1` and optional `repository`,
+`branch`, `private_ci`, and repository-keyed `overrides` objects. Unknown fields
+and invalid types are errors; policy data is never executed. Example:
+
+```json
+{
+  "version": 1,
+  "repository": {
+    "allow_merge_commit": false,
+    "allow_squash_merge": true,
+    "allow_rebase_merge": true,
+    "delete_branch_on_merge": true,
+    "allow_auto_merge": false
+  },
+  "branch": {
+    "strict": false,
+    "require_pull_request": true,
+    "required_approvals": 0,
+    "require_code_owner_reviews": false,
+    "require_last_push_approval": false,
+    "require_conversation_resolution": true,
+    "require_linear_history": true,
+    "allow_force_pushes": false,
+    "allow_deletions": false,
+    "enforce_admins": true,
+    "required_checks": null
+  },
+  "private_ci": {
+    "workflows": null,
+    "required_pr_events": ["opened", "synchronize", "ready_for_review"],
+    "skip_draft": true,
+    "no_default_branch_push": true
+  }
+}
+```
+
+Use the repository's actual required context names for `required_checks` and
+explicit CI file paths for `workflows`; `null` stays unknown. The auditor does
+not guess CI names from filenames or workflow names. Repository overrides
+merge individual section fields. `decision_required` holds unresolved decision
+messages, and `pending_fields` holds branch fields such as
+`branch.require_pull_request` that must remain unknown until a policy exception
+is decided. These markers do not authorize any mutation.
+
+`ruleset_bypasses` optionally maps a rule type (`pull_request`,
+`required_status_checks`, `deletion`, `non_fast_forward`, or
+`required_linear_history`) to an exact list of approved User actors. Each actor
+has `actor_type: "User"`, a numeric `actor_id`, and explicit `bypass_mode`
+(`always` or `pull_request`). An empty list prohibits bypass; null is undecided.
+Role-based substitutions are rejected. The auditor checks every rule in the
+entire active ruleset before accepting an exception, so a PR exception cannot
+silently cover deletion or force-push restrictions. It also reports classic PR and CI
+protection overlap as unknown rather than claiming direct pushes will work.
+A ruleset PR bypass covers all of that PR rule's parameters, including
+conversation resolution; separate enforcement needs separate evidence.
+
+
+Classic protection and all pages of active effective rules are read. A
+403/404 does not prove protection is absent. Hidden ruleset bypass actors and
+actor-specific exceptions remain unknown. Admin enforcement is a conservative
+source-configuration comparison, not proof of a particular user's effective
+permissions. Required checks compare the exact union of context names, not
+app bindings or actual run results. Stronger overlapping rules can produce a
+configuration drift finding even if another rule already provides protection;
+review the overlap instead of automatically changing either rule.
+
+For private CI, the command checks declared PR events, a small set of proven
+job-level Draft guards, and default-branch push triggers. Complex conditions,
+filters, or globs stay unknown. Job guards can still create a skipped workflow
+record; they prevent job execution. Runtime execution always has a separate
+unknown finding until actual jobs at the exact commit are verified outside this
+static auditor. The command never dispatches a workflow.
+
+Exit status is `0` for all evaluated comparisons passing, `1` for known drift,
+and `2` for unknown-only or invalid input. A drift report may also contain
+unknown findings; always inspect the complete JSON. An empty policy does not
+pass vacuously.
+
+Snapshot JSON has `repo`, `branch`, `metadata`, `classic`, `rules`, `rulesets`,
+and `workflows`. API responses use `{"state":"ok","data":...}` or
+`{"state":"unknown","reason":"..."}`. `rules.data` is the complete effective
+rules array; `rulesets` maps IDs to response envelopes; each workflow has
+`path`, `state`, and UTF-8 `text`. Do not fabricate successful empty responses
+from failed reads. Save timestamps and source links alongside snapshots, and
+keep private repository reports private.
 
 ## Configuration
 
@@ -244,6 +345,7 @@ The script tags `origin/main` as `v1.2.3`, force-moves `v1` to the same commit, 
 
 ```bash
 /bin/bash tests/run.sh
+python3 -m unittest discover -s tests -p 'test_*.py' -v
 shellcheck -x gh-repo-checks checks/*.sh scripts/*.sh tests/*.sh
 ./gh-repo-checks repository
 ```

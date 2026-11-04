@@ -12,6 +12,7 @@ Run before claiming a change is complete:
 
 ```bash
 /bin/bash tests/run.sh
+python3 -m unittest discover -s tests -p 'test_*.py' -v
 shellcheck -x gh-repo-checks checks/*.sh scripts/*.sh tests/*.sh
 ./gh-repo-checks repository
 ```

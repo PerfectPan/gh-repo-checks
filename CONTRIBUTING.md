@@ -6,6 +6,9 @@
 # every command against fixture repositories, under the oldest supported bash
 /bin/bash tests/run.sh
 
+# settings audit tests (PyYAML enables workflow parsing tests)
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+
 # lint the scripts
 shellcheck -x gh-repo-checks checks/*.sh scripts/*.sh tests/*.sh
 
@@ -19,9 +22,11 @@ Run `./gh-repo-checks` from the checkout to try a change; an installed extension
 
 ## Layout
 
-- `gh-repo-checks`: the extension entry point. It dispatches to `checks/<command>.sh` under the same bash.
+- `gh-repo-checks`: the extension entry point. It dispatches to `checks/<command>.sh` under the same bash. The additive `settings` command dispatches to Python 3.
 - `action.yml`: the composite action. It runs the same entry point and passes event fields through environment variables.
 - `checks/`: one script per command, plus `review-sections.sh`, the single list of required review sections.
+- `checks/settings.py`: read-only GitHub settings audit; never share its collection path with write commands.
+- `tests/test_settings.py`: offline settings and workflow regression tests.
 - `tests/run.sh`: the self-test. It builds fixture repositories in a temporary directory.
 - `scripts/release.sh`: tags and publishes a release.
 - `.github/repo-checks.conf`: this repository's own configuration for the repository check.
