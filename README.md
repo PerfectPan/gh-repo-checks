@@ -89,6 +89,10 @@ gh repo-checks settings --repo OWNER/REPO --policy policy.json --json
 gh repo-checks settings --snapshot snapshot.json --policy policy.json --json
 ```
 
+The entry point is thin; policy validation, GitHub reads, branch rules, bypass
+scope, workflow parsing, report assembly, and CLI handling live in separate
+modules under `checks/settings_audit/`. Tests are grouped by the same boundaries.
+
 This additive command is read-only and separate from `protect`. It only calls
 `gh api --hostname github.com --method GET`, does not install tools or create
 credentials, and never changes GitHub configuration. It requires Python 3;

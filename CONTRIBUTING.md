@@ -25,8 +25,9 @@ Run `./gh-repo-checks` from the checkout to try a change; an installed extension
 - `gh-repo-checks`: the extension entry point. It dispatches to `checks/<command>.sh` under the same bash. The additive `settings` command dispatches to Python 3.
 - `action.yml`: the composite action. It runs the same entry point and passes event fields through environment variables.
 - `checks/`: one script per command, plus `review-sections.sh`, the single list of required review sections.
-- `checks/settings.py`: read-only GitHub settings audit; never share its collection path with write commands.
-- `tests/test_settings.py`: offline settings and workflow regression tests.
+- `checks/settings.py`: thin entry point for the read-only settings audit.
+- `checks/settings_audit/`: `policy.py` validates policy data; `github.py` owns GET-only collection; `branches.py` compares protections; `bypasses.py` checks exact actor scope; `workflows.py` handles conservative YAML checks; `audit.py` assembles reports; `cli.py` owns arguments and output. Keep the collection path separate from write commands.
+- `tests/test_settings.py`, `tests/test_settings_bypasses.py`, and `tests/test_settings_workflows.py`: offline core/CLI, bypass, and workflow regression tests, with shared data in `tests/settings_fixtures.py`.
 - `tests/run.sh`: the self-test. It builds fixture repositories in a temporary directory.
 - `scripts/release.sh`: tags and publishes a release.
 - `.github/repo-checks.conf`: this repository's own configuration for the repository check.
