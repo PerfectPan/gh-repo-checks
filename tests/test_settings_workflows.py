@@ -53,6 +53,32 @@ class WorkflowTest(unittest.TestCase):
     def test_paths_filters_need_review(self):
         self.assertEqual(self.inspect(self.workflow("pull_request:\n    types: [opened, synchronize, ready_for_review]\n    paths: ['src/**']"))["filters"], "unknown")
 
+    def test_duplicate_top_level_keys_are_unknown(self):
+        text = self.workflow().replace("on:\n", "on: push\non:\n")
+        self.assertEqual(self.inspect(text), {"parse": "unknown"})
+
+    def test_duplicate_event_types_are_unknown(self):
+        events = "pull_request:\n    types: [opened]\n    types: [opened, synchronize, ready_for_review]"
+        self.assertEqual(self.inspect(self.workflow(events)), {"parse": "unknown"})
+
+    def test_duplicate_job_guards_are_unknown(self):
+        guard = "if: true\n    if: ${{ !github.event.pull_request.draft }}"
+        self.assertEqual(self.inspect(self.workflow(guard=guard)), {"parse": "unknown"})
+
+    def test_duplicate_step_keys_are_unknown(self):
+        text = self.workflow().replace("steps: []", "steps:\n      - run: echo first\n        run: echo second")
+        self.assertEqual(self.inspect(text), {"parse": "unknown"})
+
+    def test_duplicate_quoted_and_plain_keys_are_unknown(self):
+        text = self.workflow().replace("on:\n", "'on': push\non:\n")
+        self.assertEqual(self.inspect(text), {"parse": "unknown"})
+
+    def test_same_key_in_distinct_mappings_is_valid(self):
+        text = self.workflow().replace("steps: []", "steps:\n      - run: echo first\n      - run: echo second")
+        result = self.inspect(text)
+        self.assertEqual(result.pop("execution"), "unknown")
+        self.assertEqual(set(result.values()), {"pass"})
+
     def test_malformed_yaml_is_unknown(self):
         self.assertEqual(self.inspect("on: ["), {"parse": "unknown"})
 

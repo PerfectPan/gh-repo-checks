@@ -2,6 +2,8 @@
 
 import re
 
+from .workflow_yaml import load_unique_keys
+
 
 def audit_workflow(path, text, policy, add, default_branch):
     prefix = "private_ci." + path + "."
@@ -11,8 +13,7 @@ def audit_workflow(path, text, policy, add, default_branch):
         add(prefix + "parse", "unknown", detail="Optional PyYAML is unavailable; do not infer workflow behavior from text matching.")
         return
     try:
-        # BaseLoader keeps GitHub's 'on' key from becoming YAML 1.1 boolean True.
-        doc = yaml.load(text, Loader=yaml.BaseLoader)
+        doc = load_unique_keys(yaml, text)
         if not isinstance(doc, dict):
             raise ValueError("not an object")
     except (yaml.YAMLError, ValueError, RecursionError):

@@ -97,7 +97,9 @@ This additive command is read-only and separate from `protect`. It only calls
 `gh api --hostname github.com --method GET`, does not install tools or create
 credentials, and never changes GitHub configuration. It requires Python 3;
 PyYAML is optional for workflow parsing. Missing tools or unreadable endpoints
-produce `unknown` findings rather than silently succeeding.
+produce `unknown` findings rather than silently succeeding. Workflow YAML with
+duplicate mapping keys is rejected as `parse: unknown`, rather than accepting
+the last value and reporting misleading findings.
 
 The required JSON policy contains `version: 1` and optional `repository`,
 `branch`, `private_ci`, and repository-keyed `overrides` objects. Unknown fields
