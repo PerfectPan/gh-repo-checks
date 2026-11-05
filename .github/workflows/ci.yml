@@ -15,6 +15,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python3 -m pip install "PyYAML>=6,<7"
+      - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       # /bin/bash is bash 3.2 on macOS and bash 5 on Linux.
       - run: /bin/bash tests/run.sh
 

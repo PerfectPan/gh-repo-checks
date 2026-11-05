@@ -14,6 +14,7 @@ Commands:
   repository [--staged]   Check required files, tracked artifacts, secrets,
                           private paths, and required review sections.
   protect [options]       Preview or apply GitHub branch protection.
+  settings [options]      Audit GitHub settings without changing them.
 
 Run "gh repo-checks <command> --help" for command options.
 USAGE
@@ -21,6 +22,10 @@ USAGE
 
 command="${1:-}"
 case "$command" in
+  settings)
+    shift
+    exec python3 "$root/checks/settings.py" "$@"
+    ;;
   pr-title|pr-body|repository|protect)
     shift
     # Run the command under the interpreter that runs this dispatcher, so
