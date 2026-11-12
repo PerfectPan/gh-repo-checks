@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The release check tests install the newest @changesets/cli 3.x, whose internal packages the checks load, so a
+  # weekly run catches a CLI release that breaks them before a consumer's release does.
+  schedule:
+    - cron: "17 3 * * 1"
 
 jobs:
   test:
@@ -22,6 +26,16 @@ jobs:
       - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       # /bin/bash is bash 3.2 on macOS and bash 5 on Linux.
       - run: /bin/bash tests/run.sh
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+      # The Changesets checks read the libraries of an installed @changesets/cli, as they do in a repository.
+      - name: Install @changesets/cli for the release check tests
+        run: npm install --prefix "$RUNNER_TEMP/changesets-cli" --no-audit --no-fund @changesets/cli@3
+      - name: Release check tests
+        env:
+          CHANGESETS_CLI_ROOT: ${{ runner.temp }}/changesets-cli
+        run: node --test tests/release.test.mjs
 
   shellcheck:
     name: shellcheck
@@ -29,3 +43,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: shellcheck -x gh-repo-checks checks/*.sh scripts/*.sh tests/*.sh
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install actionlint 1.7.12
+        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+      # actionlint 1.7.12 does not know the job.workflow_* context that npm-release.yml uses yet.
+      - run: ./actionlint -ignore 'property "workflow_(repository|sha)" is not defined' .github/workflows/*.yml

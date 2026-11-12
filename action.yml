@@ -1,5 +1,5 @@
 name: Repository review checks
-description: Check required repository files, the PR title, or the PR description.
+description: Check required repository files, the PR title, the PR description, or the pending Changesets records.
 author: PerfectPan
 branding:
   icon: check-square
@@ -7,7 +7,7 @@ branding:
 
 inputs:
   check:
-    description: "Check to run: repository, pr-title, or pr-body. pr-title and pr-body read the pull_request event payload."
+    description: "Check to run: repository, pr-title, pr-body, or release-plan. pr-title and pr-body read the pull_request event payload; release-plan needs Node.js and the repository's installed dependencies."
     required: true
 
 runs:
@@ -32,8 +32,11 @@ runs:
           pr-body)
             printf '%s\n' "$PR_BODY" | "$GITHUB_ACTION_PATH/gh-repo-checks" pr-body
             ;;
+          release-plan)
+            "$GITHUB_ACTION_PATH/gh-repo-checks" release-plan
+            ;;
           *)
-            printf 'repo-checks: unknown check: %s (expected repository, pr-title, or pr-body)\n' "$CHECK" >&2
+            printf 'repo-checks: unknown check: %s (expected repository, pr-title, pr-body, or release-plan)\n' "$CHECK" >&2
             exit 1
             ;;
         esac

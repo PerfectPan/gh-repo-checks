@@ -1,0 +1,178 @@
+# Shared npm release flow for PerfectPan repositories that version with Changesets; docs/npm-release.md is the
+# runbook. A repository calls it from its own workflow file, and npm Trusted Publishing validates that calling
+# file's name, not this one. The caller grants contents: write, pull-requests: write and id-token: write; each job
+# below narrows them, so only the publish job can request an OIDC token and it runs no repository build. The two
+# jobs with write permissions install without the pnpm store cache: dependency code in the read-only jobs can
+# change files in the store those jobs save, which would otherwise run later beside the write token.
+name: npm release
+
+on:
+  workflow_call:
+    inputs:
+      check-command:
+        description: Release gate run before packing, in a job without write permissions. It must build what the packages ship.
+        type: string
+        default: pnpm run check
+      audit-command:
+        description: Dependency audit run after the gate. An empty string skips it.
+        type: string
+        default: pnpm audit --prod --audit-level=high
+      version-command:
+        description: Versions the packages and writes their changelogs for the version pull request. It runs without a shell, so chain steps in a package script.
+        type: string
+        default: pnpm run version-packages
+      first-publish-check:
+        description: Stop before versioning or publishing a public package name that has no version on npm yet.
+        type: boolean
+        default: true
+    outputs:
+      published:
+        description: '"true" when the run published at least one package.'
+        value: ${{ jobs.publish.outputs.published }}
+      published-packages:
+        description: JSON array of the published packages, such as [{"name":"@scope/pkg","version":"1.2.0"}].
+        value: ${{ jobs.publish.outputs.published-packages }}
+
+permissions: {}
+
+jobs:
+  select-mode:
+    name: select release mode
+    # A manual run from another branch would version or publish that branch.
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+      publish-plan-artifact-id: ${{ steps.mode.outputs.publish-plan-artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # The checks come from the commit this workflow runs from, so a caller pinned to a release runs that
+      # release's checks.
+      - name: Check out the release checks
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .gh-repo-checks
+          persist-credentials: false
+      - name: Move the release checks out of the workspace
+        run: mv .gh-repo-checks "$RUNNER_TEMP/gh-repo-checks"
+      # pnpm/setup installs the pnpm from `packageManager` and the Node.js range in `devEngines.runtime`, then runs
+      # `pnpm install --frozen-lockfile`.
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node
+          require-lockfile: true
+          cache: true
+      - name: Select release mode
+        id: mode
+        uses: changesets/action/select-mode@v2.1.2
+      - name: Check pending change records
+        if: steps.mode.outputs.mode == 'version'
+        run: '"$RUNNER_TEMP/gh-repo-checks/gh-repo-checks" release-plan'
+      - name: Check first-publish setup
+        if: inputs.first-publish-check && steps.mode.outputs.mode != 'none'
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: '"$RUNNER_TEMP/gh-repo-checks/gh-repo-checks" first-publish "$MODE"'
+
+  version:
+    name: version packages
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'version'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # changelog-github looks up the commit that added each change record.
+          fetch-depth: 0
+          # The action pushes through the GitHub API with its own token input.
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node
+          require-lockfile: true
+      # Runs version-command with GITHUB_TOKEN set, commits the result through the GitHub API (signed) and opens or
+      # updates the draft pull request changeset-release/<branch>. Every update returns it to Draft.
+      - uses: changesets/action/version@v2.1.2
+        with:
+          script: ${{ inputs.version-command }}
+          commit-message: "chore(release): version packages"
+          pr-title: "chore(release): version packages"
+          pr-draft: always
+
+  pack:
+    name: check and pack packages
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'publish'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      pack-dir-artifact-id: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node
+          require-lockfile: true
+          cache: true
+      - name: Run release gates
+        env:
+          # Read-only in this job; lets a gate use gh, for example to install gh-repo-checks.
+          GH_TOKEN: ${{ github.token }}
+        run: ${{ inputs.check-command }}
+      - name: Audit dependencies
+        if: inputs.audit-command != ''
+        run: ${{ inputs.audit-command }}
+      - name: Pack the unpublished versions
+        id: pack
+        uses: changesets/action/pack@v2.1.2
+        with:
+          publish-plan-artifact-id: ${{ needs.select-mode.outputs.publish-plan-artifact-id }}
+
+  publish:
+    name: publish packages
+    needs: [select-mode, pack]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # Pushes the release tags and creates the GitHub Releases.
+      contents: write
+      # npm Trusted Publishing exchanges this job's OIDC token for a publish credential.
+      id-token: write
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
+      published-packages: ${{ steps.publish.outputs.published-packages }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@v3
+        with:
+          runtime: node
+          require-lockfile: true
+          install: false
+      # The tarballs were built and packed in the pack job; this job only needs @changesets/cli, so dependency
+      # lifecycle scripts never run next to the OIDC permission.
+      - name: Install dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      # Publishes each packed tarball through Trusted Publishing, skipping versions already on npm, then pushes one
+      # tag <name>@<version> and creates one GitHub Release per published package.
+      - name: Publish the packed versions
+        id: publish
+        uses: changesets/action/publish@v2.1.2
+        with:
+          pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir-artifact-id }}
