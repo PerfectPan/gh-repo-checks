@@ -1,6 +1,6 @@
 # gh-repo-checks
 
-Review checks for PerfectPan repositories, shipped from one versioned source as a GitHub CLI extension and a GitHub Action. Repositories reference a release instead of copying the check scripts.
+Review checks for PerfectPan repositories, shipped from one versioned source as a GitHub CLI extension and a GitHub Action, plus the shared npm release workflow for repositories that version with Changesets. Repositories reference a release instead of copying the check scripts or the release workflow.
 
 | Command | Checks |
 | --- | --- |
@@ -9,6 +9,8 @@ Review checks for PerfectPan repositories, shipped from one versioned source as 
 | `repository` | Required files exist, no local or generated artifacts are tracked, no obvious secrets, personal paths, or forbidden patterns are tracked, and the PR/MR templates contain the required review sections. |
 | `protect` | Previews or applies GitHub branch protection that requires these checks. |
 | `settings` | Audits GitHub settings and selected CI workflows against an explicit policy, without writing settings. |
+| `release-plan` | Every pending Changesets record names only packages that `changeset version` releases. |
+| `first-publish` | The public packages a release would version or publish already have a version on npm. |
 
 The commands need bash (macOS `/bin/bash` 3.2 or newer), Git, and Perl. Installing the extension and `protect` need the [GitHub CLI](https://cli.github.com/).
 
@@ -28,10 +30,10 @@ gh extension upgrade repo-checks
 ```yaml
 - uses: PerfectPan/gh-repo-checks@v1
   with:
-    check: repository # or pr-title, pr-body
+    check: repository # or pr-title, pr-body, release-plan
 ```
 
-`pr-title` and `pr-body` read the title and body from the `pull_request` event payload. Check out the repository before `repository` and `pr-body`: the repository check reads its files, and the description check treats lines copied from the repository's PR/MR template as placeholders.
+`pr-title` and `pr-body` read the title and body from the `pull_request` event payload. Check out the repository before `repository` and `pr-body`: the repository check reads its files, and the description check treats lines copied from the repository's PR/MR template as placeholders. `release-plan` runs after the repository's dependencies are installed, because it reads the installed `@changesets/cli`.
 
 ## Commands
 
@@ -187,6 +189,19 @@ rules array; `rulesets` maps IDs to response envelopes; each workflow has
 from failed reads. Save timestamps and source links alongside snapshots, and
 keep private repository reports private.
 
+### `gh repo-checks release-plan`
+
+Reads the pending `.changeset/*.md` records with the libraries of the repository's installed `@changesets/cli` 3.x and fails when a record names a package that `changeset version` skips: a private package (unless `privatePackages.version` is set) or an ignored one, including `none` records. `changeset version` leaves such a record pending, so the release flow keeps preparing a version pull request and never publishes. A record that Changesets refuses outright, such as one naming a private package beside a public one, fails with Changesets' own message. Needs Node.js and the installed dependencies; run it from the repository root.
+
+### `gh repo-checks first-publish [version|publish]`
+
+npm Trusted Publishing cannot create a package name, so a release of a name that has never been published fails at the token exchange. This command asks the registry (`npm view <name> versions`) for each public, non-ignored package and fails when one has no version yet:
+
+- `version` (the default) checks only the packages the pending records release, so an unrelated new package does not block an existing package's version pull request.
+- `publish` checks every public, non-ignored package.
+
+A registry failure other than a 404 fails with its own message instead of reporting the name as missing. `RELEASE_REGISTRY` overrides the registry, which defaults to `https://registry.npmjs.org/`. Needs Node.js, npm and the installed `@changesets/cli` 3.x.
+
 ## Configuration
 
 `.github/repo-checks.conf` adjusts the `repository` check; without the file the defaults apply. The file has one directive per line. Blank lines and lines starting with `#` are ignored, and everything after the directive word is the value, so trailing comments are not supported.
@@ -275,6 +290,28 @@ The `edited` event type re-runs the checks when the title or description changes
       - run: node scripts/check-documentation.mjs
 ```
 
+### npm releases
+
+A repository that versions with Changesets and publishes to npm calls the shared workflow from a workflow file of its own, which npm Trusted Publishing is bound to:
+
+```yaml
+jobs:
+  release:
+    uses: PerfectPan/gh-repo-checks/.github/workflows/npm-release.yml@v1
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+```
+
+[docs/npm-release.md](docs/npm-release.md) is the release runbook: the complete caller workflow, the inputs, what each repository keeps, one-time npm setup, cutting a release and failure recovery. Add the `release-plan` check to CI after the dependency install:
+
+```yaml
+      - uses: PerfectPan/gh-repo-checks@v1
+        with:
+          check: release-plan
+```
+
 ### Pre-commit hook
 
 Add `.githooks/pre-commit` and enable it with `git config core.hooksPath .githooks`:
@@ -352,6 +389,7 @@ The script tags `origin/main` as `v1.2.3`, force-moves `v1` to the same commit, 
 ```bash
 /bin/bash tests/run.sh
 python3 -m unittest discover -s tests -p 'test_*.py' -v
+CHANGESETS_CLI_ROOT=... node --test tests/release.test.mjs
 shellcheck -x gh-repo-checks checks/*.sh scripts/*.sh tests/*.sh
 ./gh-repo-checks repository
 ```
