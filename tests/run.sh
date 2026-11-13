@@ -381,6 +381,10 @@ put "$repo" tests/fixtures/leak.txt "$fake_aws_key"
 put "$repo" .github/repo-checks.conf "exclude tests/fixtures"
 expect_ok "conf exclude skips a directory in the scan" in_repo "$repo" cli repository
 
+repo="$(new_repo conf-allow-major)"
+put "$repo" .github/repo-checks.conf "allow-major @scope/pkg"
+expect_ok "conf accepts allow-major, which only release-plan reads" in_repo "$repo" cli repository
+
 repo="$(new_repo conf-errors)"
 put "$repo" .github/repo-checks.conf "
 
