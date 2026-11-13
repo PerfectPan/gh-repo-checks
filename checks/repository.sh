@@ -153,6 +153,9 @@ if file_present "$config"; then
       exclude)
         scan_excludes+=(":(exclude)$value")
         ;;
+      allow-major)
+        # Read by the release-plan check.
+        ;;
       *)
         fail "$config:$line_number: unknown directive: $directive"
         ;;

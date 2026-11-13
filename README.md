@@ -9,7 +9,7 @@ Review checks for PerfectPan repositories, shipped from one versioned source as 
 | `repository` | Required files exist, no local or generated artifacts are tracked, no obvious secrets, personal paths, or forbidden patterns are tracked, and the PR/MR templates contain the required review sections. |
 | `protect` | Previews or applies GitHub branch protection that requires these checks. |
 | `settings` | Audits GitHub settings and selected CI workflows against an explicit policy, without writing settings. |
-| `release-plan` | Every pending Changesets record names only packages that `changeset version` releases. |
+| `release-plan` | Every pending Changesets record names only packages that `changeset version` releases, and no 0.x package goes 1.0.0 unless the configuration allows it. |
 | `first-publish` | The public packages a release would version or publish already have a version on npm. |
 
 The commands need bash (macOS `/bin/bash` 3.2 or newer), Git, and Perl. Installing the extension and `protect` need the [GitHub CLI](https://cli.github.com/).
@@ -191,7 +191,9 @@ keep private repository reports private.
 
 ### `gh repo-checks release-plan`
 
-Reads the pending `.changeset/*.md` records with the libraries of the repository's installed `@changesets/cli` 3.x and fails when a record names a package that `changeset version` skips: a private package (unless `privatePackages.version` is set) or an ignored one, including `none` records. `changeset version` leaves such a record pending, so the release flow keeps preparing a version pull request and never publishes. A record that Changesets refuses outright, such as one naming a private package beside a public one, fails with Changesets' own message. Needs Node.js and the installed dependencies; run it from the repository root.
+Reads the pending `.changeset/*.md` records with the libraries of the repository's installed `@changesets/cli` 3.x and fails when a record names a package that `changeset version` skips: a private package (unless `privatePackages.version` is set) or an ignored one, including `none` records. `changeset version` leaves such a record pending, so the release flow keeps preparing a version pull request and never publishes. A record that Changesets refuses outright, such as one naming a private package beside a public one, fails with Changesets' own message.
+
+It also fails when the pending records would move a 0.x package to 1.0.0: a `major` record for it, or a `major` record for another releasing member of its `fixed` or `linked` group. A breaking change in 0.x takes a `minor` record. Going 1.0.0 is a deliberate decision: list each such package as `allow-major <name>` in [`.github/repo-checks.conf`](#configuration), in the pull request that adds the major record, and remove the line once 1.0.0 is published. Packages at 1.0.0 or later take major records without it. Needs Node.js and the installed dependencies; run it from the repository root.
 
 ### `gh repo-checks first-publish [version|publish]`
 
@@ -204,7 +206,7 @@ A registry failure other than a 404 fails with its own message instead of report
 
 ## Configuration
 
-`.github/repo-checks.conf` adjusts the `repository` check; without the file the defaults apply. The file has one directive per line. Blank lines and lines starting with `#` are ignored, and everything after the directive word is the value, so trailing comments are not supported.
+`.github/repo-checks.conf` adjusts the `repository` check, and through `allow-major` the `release-plan` check; without the file the defaults apply. The file has one directive per line. Blank lines and lines starting with `#` are ignored, and everything after the directive word is the value, so trailing comments are not supported.
 
 | Directive | Value | Effect |
 | --- | --- | --- |
@@ -212,6 +214,7 @@ A registry failure other than a 404 fails with its own message instead of report
 | `unrequire` | A path from the default list | Drops the default requirement that lists this path. A path that is not a default is an error. |
 | `forbid` | An extended regular expression | Fails the scan when a tracked text file matches. |
 | `exclude` | A Git pathspec: a file, a directory, or a glob | Skips matching files in the secret, path, and `forbid` scan. |
+| `allow-major` | A package name | Lets `release-plan` accept a release that moves this 0.x package to 1.0.0. The `repository` check accepts it and does nothing with it. |
 
 Unknown directives and invalid `forbid` patterns fail the check instead of being ignored. The scan always skips `AGENTS.md`, `CONTRIBUTING.md`, and `SECURITY.md`, which document the scanned patterns, and the configuration file itself.
 

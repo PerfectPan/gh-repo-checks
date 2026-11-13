@@ -128,7 +128,7 @@ repository; pin `@vX.Y.Z` to take each release through a reviewed PR instead.
   overrides `ignorePatterns` (`[...fmt.ignorePatterns, "dist/**"]`), and add `CHANGELOG.*` yourself on an older
   lint-config.
 - CI runs `gh repo-checks release-plan` on pull requests after the dependency install (see the README), so a
-  record that can never be consumed fails before it merges.
+  record that can never be consumed, or one that would move a 0.x package to 1.0.0, fails before it merges.
 - The repository's own release doc keeps only what is specific to it: the published packages and `fixed` groups,
   non-default inputs, its trusted-publisher values, and failure modes of its extra steps. It links here for the
   rest.
@@ -150,6 +150,10 @@ users of the package.
   including `none` records. Describe a change in an internal package by its effect on the published package that
   ships it.
 - The bump comes only from the records; the largest pending bump applies, and a `fixed` group shares it.
+- A breaking change in a 0.x package takes `minor`. `release-plan` rejects a record that would move a 0.x package
+  to 1.0.0, directly or through its `fixed` or `linked` group, unless `.github/repo-checks.conf` lists the package as
+  `allow-major <name>`. Add that line in the pull request that adds the major record; reviewing it is the 1.0.0
+  decision. Remove the line after 1.0.0 is published.
 - `pnpm changeset status --verbose` previews the pending versions.
 
 ## One-Time Setup
@@ -209,8 +213,9 @@ One package's trusted publisher does not authorize another.
 The workflow publishes only when no record is pending; with records pending it prepares the version PR, even if
 an earlier version is still unpublished. Recover by re-running the run of the release commit whenever possible.
 
-- **select release mode failed**: `release-plan` names the record to fix or remove; `first-publish` names the
-  package that needs its placeholder. Nothing was versioned or published.
+- **select release mode failed**: `release-plan` names the record to fix or remove, or the 0.x package a major
+  bump would move to 1.0.0; `first-publish` names the package that needs its placeholder. Nothing was versioned or
+  published.
 - **version packages failed** (`version-command`, changelog lookup): nothing changed on the default branch.
   Re-run for a transient failure; otherwise fix the cause in a reviewed PR, whose merge regenerates the version
   PR.

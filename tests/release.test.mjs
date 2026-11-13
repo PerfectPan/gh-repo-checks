@@ -24,10 +24,24 @@ afterEach(() => {
 });
 
 /**
- * A pnpm workspace with public packages a and b, a private package u, and every package at 0.1.0. `records` maps a
- * record file name to its releases and `rawRecords` to its full text; `config: null` writes no configuration.
+ * A pnpm workspace with public packages a and b, a private package u, and every package at 0.1.0 unless `versions`
+ * names another version. `records` maps a record file name to its releases and `rawRecords` to its full text;
+ * `config: null` writes no configuration. `peers` maps a package to its peer dependencies, and `repoChecksConf` is
+ * the text of .github/repo-checks.conf.
  */
-function workspace({ records = {}, rawRecords = {}, ignore = [], privateVersion = false, withCli = true, config } = {}) {
+function workspace({
+  records = {},
+  rawRecords = {},
+  ignore = [],
+  fixed = [],
+  linked = [],
+  privateVersion = false,
+  withCli = true,
+  config,
+  versions = {},
+  peers = {},
+  repoChecksConf
+} = {}) {
   const root = mkdtempSync(join(tmpdir(), "gh-repo-checks-release-"));
   workspaces.push(root);
   const write = (path, content) => {
@@ -37,13 +51,17 @@ function workspace({ records = {}, rawRecords = {}, ignore = [], privateVersion 
   write("package.json", { name: "root", private: true });
   write("pnpm-workspace.yaml", "packages:\n  - packages/*\n");
   for (const name of ["a", "b", "u"]) {
-    write(`packages/${name}/package.json`, { name, version: "0.1.0", private: name === "u" });
+    const manifest = { name, version: versions[name] ?? "0.1.0", private: name === "u" };
+    write(`packages/${name}/package.json`, peers[name] ? { ...manifest, peerDependencies: peers[name] } : manifest);
   }
   if (config !== null) {
     write(
       ".changeset/config.json",
-      config ?? { changelog: false, fixed: [], ignore, privatePackages: { version: privateVersion, tag: false } }
+      config ?? { changelog: false, fixed, linked, ignore, privatePackages: { version: privateVersion, tag: false } }
     );
+  }
+  if (repoChecksConf !== undefined) {
+    write(".github/repo-checks.conf", repoChecksConf);
   }
   for (const [id, text] of Object.entries(rawRecords)) {
     write(`.changeset/${id}.md`, text);
@@ -86,14 +104,121 @@ function run(root, args, env = {}) {
 }
 
 describe("release-plan", () => {
-  it("accepts minor, patch and major records for public packages", async () => {
-    const result = await run(workspace({ records: { one: { a: "minor", b: "patch" }, two: { a: "major" } } }), [
+  it("accepts minor and patch records for public packages", async () => {
+    const result = await run(workspace({ records: { one: { a: "minor", b: "patch" }, two: { a: "patch" } } }), [
       "release-plan"
     ]);
 
     assert.equal(result.stderr, "");
     assert.equal(result.status, 0);
     assert.match(result.stdout, /ok \(2 pending change record\(s\)\)/);
+  });
+
+  it("rejects a major record for a 0.x package", async () => {
+    const result = await run(workspace({ records: { one: { a: "minor" }, two: { a: "major" } } }), ["release-plan"]);
+
+    assert.equal(result.status, 1);
+    assert.equal(
+      result.stderr,
+      "repo-checks release-plan: .changeset/two.md requests a major bump of a, a 0.x package; use minor for a " +
+        'breaking change, or add "allow-major a" to .github/repo-checks.conf for a deliberate 1.0.0\n'
+    );
+  });
+
+  it("accepts a major record for a 0.x package that the configuration allows", async () => {
+    const root = workspace({
+      records: { one: { a: "major" } },
+      repoChecksConf: "# a goes 1.0.0 in this release.\nrequire .node-version\n  allow-major   a  \n"
+    });
+
+    const result = await run(root, ["release-plan"]);
+
+    assert.equal(result.stderr, "");
+    assert.equal(result.status, 0);
+  });
+
+  it("accepts a major record for a package past 0.x", async () => {
+    const result = await run(workspace({ records: { one: { a: "major" } }, versions: { a: "1.2.0" } }), [
+      "release-plan"
+    ]);
+
+    assert.equal(result.stderr, "");
+    assert.equal(result.status, 0);
+  });
+
+  it("names a fixed-group member that an allowed major record moves to 1.0.0", async () => {
+    const root = workspace({ records: { one: { a: "major" } }, fixed: [["a", "b"]], repoChecksConf: "allow-major a\n" });
+
+    const result = await run(root, ["release-plan"]);
+
+    assert.equal(result.status, 1);
+    assert.equal(
+      result.stderr,
+      "repo-checks release-plan: the pending records bump b from 0.1.0 to 1.0.0 through its fixed or linked group; " +
+        'add "allow-major b" to .github/repo-checks.conf for a deliberate 1.0.0\n'
+    );
+  });
+
+  it("names a releasing linked-group member that a major record moves to 1.0.0", async () => {
+    const root = workspace({
+      records: { one: { a: "major" }, two: { b: "minor" } },
+      linked: [["a", "b"]],
+      repoChecksConf: "allow-major a\n"
+    });
+
+    const result = await run(root, ["release-plan"]);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /bump b from 0\.1\.0 to 1\.0\.0 through its fixed or linked group/);
+  });
+
+  it("reports a refused major record once, beside the group members it carries", async () => {
+    const root = workspace({ records: { one: { a: "major" } }, fixed: [["a", "b"]] });
+
+    const result = await run(root, ["release-plan"]);
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /\.changeset\/one\.md requests a major bump of a, a 0\.x package/);
+    assert.match(result.stderr, /bump b from 0\.1\.0 to 1\.0\.0 through its fixed or linked group/);
+    assert.doesNotMatch(result.stderr, /bump a from/);
+  });
+
+  it("reports only the skipped package for a private package's major record", async () => {
+    const result = await run(workspace({ records: { one: { u: "major" } } }), ["release-plan"]);
+
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr, "repo-checks release-plan: .changeset/one.md names u, which is not versioned\n");
+  });
+
+  it("reads the configuration from the workspace root when run from a package directory", async () => {
+    const root = workspace({ records: { one: { a: "major" } }, repoChecksConf: "allow-major a\n" });
+
+    const result = await run(join(root, "packages/a"), ["release-plan"]);
+
+    assert.equal(result.stderr, "");
+    assert.equal(result.status, 0);
+  });
+
+  it("accepts a fixed group going 1.0.0 when the configuration allows every member", async () => {
+    const root = workspace({
+      records: { one: { a: "major" } },
+      fixed: [["a", "b"]],
+      repoChecksConf: "allow-major a\nallow-major b\n"
+    });
+
+    const result = await run(root, ["release-plan"]);
+
+    assert.equal(result.stderr, "");
+    assert.equal(result.status, 0);
+  });
+
+  it("accepts a minor record whose peer dependent stays 0.x", async () => {
+    const root = workspace({ records: { one: { a: "minor" } }, peers: { b: { a: "^0.1.0" } } });
+
+    const result = await run(root, ["release-plan"]);
+
+    assert.equal(result.stderr, "");
+    assert.equal(result.status, 0);
   });
 
   it("accepts a public package's none record", async () => {

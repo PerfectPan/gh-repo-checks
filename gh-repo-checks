@@ -15,7 +15,8 @@ Commands:
                           private paths, and required review sections.
   protect [options]       Preview or apply GitHub branch protection.
   settings [options]      Audit GitHub settings without changing them.
-  release-plan            Check that every pending Changesets record can be consumed.
+  release-plan            Check that pending Changesets records can be consumed
+                          and keep 0.x packages below 1.0.0.
   first-publish [MODE]    Check that the public packages to release exist on npm.
 
 Run "gh repo-checks <command> --help" for command options.
