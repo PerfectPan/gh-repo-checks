@@ -77,7 +77,7 @@ Default required files:
 gh repo-checks protect [--repo OWNER/REPO] [--branch BRANCH] [--approvals N] [--check NAME]... [--no-review-checks] [--apply]
 ```
 
-Prints the branch protection payload; `--apply` sends it with `gh api` and needs an account that can edit repository settings. The payload requires pull requests with N approving reviews (default 1, dismissed by new pushes), linear history, resolved conversations, enforcement for admins, and the status checks `repository checks`, `conventional PR title`, and `PR description`, plus each `--check`, such as the CI job names.
+Prints the branch protection payload; `--apply` sends it with `gh api` and needs an account that can edit repository settings. The payload requires pull requests with N approving reviews (default 1, dismissed by new pushes), linear history, resolved conversations, enforcement for admins, and non-strict (`"strict": false`) status checks `repository checks`, `conventional PR title`, and `PR description`, plus each `--check`, such as the CI job names.
 
 `--no-review-checks` drops the three built-in status checks, so only the `--check` names are required; it fails without at least one `--check`. Use it when the repository's Review workflow does not run on every pull request, for example when it runs only on `workflow_dispatch` and reports through another status check.
 
@@ -115,7 +115,7 @@ and invalid types are errors; policy data is never executed. Example:
     "allow_squash_merge": true,
     "allow_rebase_merge": true,
     "delete_branch_on_merge": true,
-    "allow_auto_merge": false
+    "allow_auto_merge": true
   },
   "branch": {
     "strict": false,
