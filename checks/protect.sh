@@ -126,7 +126,7 @@ done
 payload="$(cat <<JSON
 {
   "required_status_checks": {
-    "strict": true,
+    "strict": false,
     "contexts": [${contexts_json}]
   },
   "enforce_admins": true,

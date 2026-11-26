@@ -425,6 +425,7 @@ expect_error "Tracked local, generated, or machine-specific artifacts" \
 
 expect_ok "protect dry run with --approvals 0 and --check" \
   cli protect --repo owner/repo --branch main --approvals 0 --check test --check lint
+expect_output '"strict": false'
 expect_output '"required_approving_review_count": 0'
 expect_output '"require_last_push_approval": false'
 expect_output '"contexts": ["repository checks", "conventional PR title", "PR description", "test", "lint"]'
