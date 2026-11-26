@@ -130,7 +130,6 @@ default_files=(
   .editorconfig
   .gitignore
   .github/workflows/ci.yml
-  docs/specs/0000-template.md
   docs/plans/0000-template.md
 )
 
@@ -359,12 +358,11 @@ expect_ok "conf require accepts present files and alternatives" in_repo "$repo" 
 repo="$(new_repo conf-unrequire)"
 git -C "$repo" rm -q -r -f -- docs .github/workflows/ci.yml
 put "$repo" .github/repo-checks.conf "unrequire docs/README.md
-unrequire docs/specs/0000-template.md
 unrequire docs/plans/0000-template.md
 unrequire .github/workflows/ci.yml"
 expect_ok "conf unrequire drops default files" in_repo "$repo" cli repository
-put "$repo" .github/repo-checks.conf "unrequire specs/0000-template.md"
-expect_error "repo-checks.conf:1: not a default requirement: specs/0000-template.md" \
+put "$repo" .github/repo-checks.conf "unrequire docs/specs/0000-template.md"
+expect_error "repo-checks.conf:1: not a default requirement: docs/specs/0000-template.md" \
   "conf unrequire rejects unknown requirements" in_repo "$repo" cli repository
 
 repo="$(new_repo conf-forbid)"

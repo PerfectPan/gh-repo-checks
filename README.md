@@ -65,7 +65,7 @@ Runs from the root of the current Git repository and stops at the first failing 
 Default required files:
 
 - `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `SECURITY.md`, `LICENSE`
-- `docs/README.md`, `docs/specs/0000-template.md`, `docs/plans/0000-template.md`
+- `docs/README.md`, `docs/plans/0000-template.md`
 - `.editorconfig`, `.gitignore`
 - `.github/pull_request_template.md`
 - `.github/workflows/ci.yml` or `.github/workflows/ci.yml.example`
@@ -224,9 +224,9 @@ Example:
 require .node-version
 require .github/dependabot.yml|.github/renovate.json
 
-# Specs live at the repository root in this monorepo.
-unrequire docs/specs/0000-template.md
-require specs/0000-template.md
+# Plans live at the repository root in this monorepo.
+unrequire docs/plans/0000-template.md
+require plans/0000-template.md
 
 # Packages publish only to the public registry.
 forbid registry\.corp\.example
@@ -353,7 +353,7 @@ Title format: `type(scope): summary`, in English.
 
 ## Summary
 
-<!-- What changed and why. Link the issue, Spec, or Plan when there is one. -->
+<!-- What changed and why. Link the issue or Plan when there is one. -->
 
 -
 
