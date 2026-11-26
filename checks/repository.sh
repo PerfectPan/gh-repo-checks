@@ -84,7 +84,6 @@ default_required_files=(
   ".github/pull_request_template.md"
   # Alternatives separated by "|": a project replaces the example with its real CI.
   ".github/workflows/ci.yml|.github/workflows/ci.yml.example"
-  "docs/specs/0000-template.md"
   "docs/plans/0000-template.md"
 )
 
